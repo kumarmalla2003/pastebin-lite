@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 import ViewPaste from '../components/ViewPaste';
-import { getPaste } from '../services/api';
+import { getPaste, incrementView } from '../services/api';
 import type { PasteResponse } from '../services/api';
 
 function Paste() {
@@ -11,18 +12,35 @@ function Paste() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    const incrementedRef = useRef(false);
+
     useEffect(() => {
+        const controller = new AbortController();
+
         const fetchPaste = async () => {
             if (!id) return;
 
             try {
+                // Fetch paste data
                 const data = await getPaste(id);
-                setPaste(data);
+
+                // ALWAYS show optimistic view count (current visit is +1)
+                // This fixes the race condition where a second effect might overwrite with stale data
+                setPaste({
+                    ...data,
+                    viewCount: data.viewCount + 1
+                });
+
+                // Increment view count in backend (only once per mount)
+                if (!incrementedRef.current) {
+                    incrementedRef.current = true;
+                    incrementView(id).catch(err => console.error('Failed to increment view:', err));
+                }
             } catch (err: unknown) {
                 if (err && typeof err === 'object' && 'response' in err) {
                     const axiosErr = err as { response?: { status?: number } };
                     if (axiosErr.response?.status === 404) {
-                        setError('Paste not found or has expired');
+                        setError('Paste not found, expired, or reached view limit');
                     } else {
                         setError('Failed to load paste');
                     }
@@ -35,38 +53,78 @@ function Paste() {
         };
 
         fetchPaste();
+
+        return () => {
+            controller.abort();
+        };
     }, [id]);
 
     return (
-        <div className="min-h-screen flex flex-col">
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
             <Header />
-            <main className="flex-1 p-4">
-                <div className="max-w-4xl mx-auto animate-fade-in">
-                    {loading ? (
-                        <div className="card p-8 text-center">
-                            <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto" />
-                            <p className="text-gray-400 mt-4">Loading paste...</p>
+
+            <main className="container" style={{ flex: 1, paddingTop: '2rem', paddingBottom: '2rem' }}>
+                {loading ? (
+                    <div className="card fade-in">
+                        <div className="card-body" style={{ textAlign: 'center', padding: '3rem' }}>
+                            <div
+                                className="spin"
+                                style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    margin: '0 auto 1rem',
+                                    border: '3px solid var(--border-color)',
+                                    borderTopColor: 'var(--accent-500)',
+                                    borderRadius: '50%',
+                                }}
+                            />
+                            <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Loading paste...</p>
                         </div>
-                    ) : error ? (
-                        <div className="card p-8 text-center">
-                            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
-                                <span className="text-3xl">😢</span>
+                    </div>
+                ) : error ? (
+                    <div className="card fade-in">
+                        <div className="card-body" style={{ textAlign: 'center', padding: '3rem' }}>
+                            <div
+                                style={{
+                                    width: '56px',
+                                    height: '56px',
+                                    margin: '0 auto 1rem',
+                                    backgroundColor: '#fee2e2',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="15" y1="9" x2="9" y2="15" />
+                                    <line x1="9" y1="9" x2="15" y2="15" />
+                                </svg>
                             </div>
-                            <h2 className="text-xl font-bold text-gray-100 mt-4">{error}</h2>
-                            <p className="text-gray-500 mt-2">
-                                This paste may have expired or been deleted.
+                            <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                {error}
+                            </h2>
+                            <p style={{ margin: '0 0 1.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                This paste may have been deleted, or reached its view limit.
                             </p>
-                            <Link to="/" className="btn-primary inline-block mt-6">
+                            <Link to="/" className="btn btn-primary">
                                 Create New Paste
                             </Link>
                         </div>
-                    ) : paste ? (
-                        <div className="card p-6 md:p-8">
-                            <ViewPaste paste={paste} />
-                        </div>
-                    ) : null}
-                </div>
+                    </div>
+                ) : paste ? (
+                    <ViewPaste
+                        paste={paste}
+                        onExpire={() => {
+                            setPaste(null);
+                            setError('This paste has expired recently.');
+                        }}
+                    />
+                ) : null}
             </main>
+
+            <Footer />
         </div>
     );
 }

@@ -1,40 +1,47 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 import CreatePaste from '../components/CreatePaste';
 import ShareLink from '../components/ShareLink';
+import PasteList from '../components/PasteList';
 import type { CreatePasteResponse } from '../services/api';
 
 function Home() {
     const [createdPaste, setCreatedPaste] = useState<CreatePasteResponse | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
-    const handleSuccess = (response: CreatePasteResponse) => {
+    const handleSuccess = useCallback((response: CreatePasteResponse) => {
         setCreatedPaste(response);
-    };
+        setRefreshKey(prev => prev + 1);
+    }, []);
 
-    const handleCreateAnother = () => {
+    const handleCreateAnother = useCallback(() => {
         setCreatedPaste(null);
-    };
+    }, []);
 
     return (
-        <div className="min-h-screen flex flex-col">
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
             <Header />
-            <main className="flex-1 flex items-center justify-center p-4">
-                <div className="w-full max-w-2xl animate-fade-in">
-                    <div className="card p-6 md:p-8">
+
+            <main className="container" style={{ flex: 1, paddingTop: '1.5rem', paddingBottom: '2rem' }}>
+                <div className="two-col">
+                    {/* Left Column: Create / Success */}
+                    <div>
                         {createdPaste ? (
                             <ShareLink paste={createdPaste} onCreateAnother={handleCreateAnother} />
                         ) : (
-                            <>
-                                <div className="mb-6">
-                                    <h1 className="text-2xl font-bold text-gray-100">Create New Paste</h1>
-                                    <p className="text-gray-500 mt-1">Share text quickly with a shareable link</p>
-                                </div>
-                                <CreatePaste onSuccess={handleSuccess} />
-                            </>
+                            <CreatePaste onSuccess={handleSuccess} />
                         )}
+                    </div>
+
+                    {/* Right Column: Paste List */}
+                    <div>
+                        <PasteList key={refreshKey} />
                     </div>
                 </div>
             </main>
+
+            <Footer />
         </div>
     );
 }

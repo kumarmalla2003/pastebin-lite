@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { createPaste, getPasteById, CreatePasteInput } from '../models/paste';
+import { createPaste, getPasteById, getAllPastes, deletePaste, cleanupExpiredPastes, incrementViewCount, CreatePasteInput } from '../models/paste';
+import pool from '../utils/database';
 
 // POST /api/pastes - Create a new paste
 export const handleCreatePaste = async (req: Request, res: Response): Promise<void> => {
@@ -92,5 +93,81 @@ export const handleGetPaste = async (req: Request, res: Response): Promise<void>
     } catch (error) {
         console.error('Error getting paste:', error);
         res.status(500).json({ error: 'Failed to retrieve paste' });
+    }
+};
+
+// POST /api/pastes/:id/view - Increment view count
+export const handleIncrementViewCount = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || id.length !== 8) {
+            res.status(400).json({ error: 'Invalid paste ID' });
+            return;
+        }
+
+        await incrementViewCount(id);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error incrementing view count:', error);
+        res.status(500).json({ error: 'Failed to increment view count' });
+    }
+};
+
+// GET /api/pastes - Get all pastes
+export const handleGetAllPastes = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const pastes = await getAllPastes();
+
+        res.json({
+            pastes: pastes.map(paste => ({
+                id: paste.id,
+                title: paste.title,
+                createdAt: paste.created_at,
+                expiresAt: paste.expires_at,
+                viewCount: paste.view_count
+            }))
+        });
+    } catch (error) {
+        console.error('Error getting pastes:', error);
+        res.status(500).json({ error: 'Failed to retrieve pastes' });
+    }
+};
+
+// DELETE /api/pastes/:id - Delete a paste
+export const handleDeletePaste = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+
+        if (!id || id.length !== 8) {
+            res.status(400).json({ error: 'Invalid paste ID' });
+            return;
+        }
+
+        const deleted = await deletePaste(id);
+
+        if (!deleted) {
+            res.status(404).json({ error: 'Paste not found' });
+            return;
+        }
+
+        res.json({ success: true, message: 'Paste deleted' });
+    } catch (error) {
+        console.error('Error deleting paste:', error);
+        res.status(500).json({ error: 'Failed to delete paste' });
+    }
+};
+
+// DELETE /api/pastes - Delete all pastes
+export const handleDeleteAllPastes = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const result = await pool.query('DELETE FROM pastes');
+        const count = result.rowCount ?? 0;
+
+        res.json({ success: true, message: `Deleted ${count} paste(s)` });
+    } catch (error) {
+        console.error('Error deleting all pastes:', error);
+        res.status(500).json({ error: 'Failed to delete pastes' });
     }
 };

@@ -61,21 +61,44 @@ export const getPasteById = async (id: string): Promise<Paste | null> => {
     }
 
     // Check if paste has reached max views
+    // If current view_count is already equal to or greater than max_views, it should be deleted/unavailable
     if (paste.max_views !== null && paste.view_count >= paste.max_views) {
         await deletePaste(id);
         return null;
+    }
+
+    return paste;
+};
+
+// Increment view count
+export const incrementViewCount = async (id: string): Promise<void> => {
+    // Get current state
+    const selectQuery = `SELECT * FROM pastes WHERE id = $1`;
+    const result = await pool.query(selectQuery, [id]);
+
+    if (result.rows.length === 0) {
+        console.log(`[IncrementView] Paste ${id} not found`);
+        return;
+    }
+
+    const paste = result.rows[0] as Paste;
+    console.log(`[IncrementView] Current views for ${id}: ${paste.view_count}, Max: ${paste.max_views}`);
+
+    // Check if paste has reached max views
+    if (paste.max_views !== null && paste.view_count >= paste.max_views) {
+        console.log(`[IncrementView] Max views reached for ${id}, deleting`);
+        await deletePaste(id);
+        return;
     }
 
     // Increment view count
     const updateQuery = `
     UPDATE pastes 
     SET view_count = view_count + 1 
-    WHERE id = $1 
-    RETURNING *
+    WHERE id = $1
   `;
-    const updateResult = await pool.query(updateQuery, [id]);
-
-    return updateResult.rows[0];
+    await pool.query(updateQuery, [id]);
+    console.log(`[IncrementView] Incremented views for ${id}`);
 };
 
 // Delete a paste
@@ -93,4 +116,19 @@ export const cleanupExpiredPastes = async (): Promise<number> => {
   `;
     const result = await pool.query(query);
     return result.rowCount ?? 0;
+};
+
+// Get all pastes (for listing)
+export const getAllPastes = async (): Promise<Paste[]> => {
+    // First clean up expired pastes
+    await cleanupExpiredPastes();
+
+    const query = `
+    SELECT id, title, created_at, expires_at, view_count 
+    FROM pastes 
+    ORDER BY created_at DESC
+    LIMIT 50
+  `;
+    const result = await pool.query(query);
+    return result.rows;
 };

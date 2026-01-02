@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import type { PasteResponse } from '../services/api';
 
 interface ViewPasteProps {
     paste: PasteResponse;
+    onExpire?: () => void;
 }
 
-function ViewPaste({ paste }: ViewPasteProps) {
+function ViewPaste({ paste, onExpire }: ViewPasteProps) {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
@@ -19,64 +20,98 @@ function ViewPaste({ paste }: ViewPasteProps) {
         }
     };
 
-    const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleString();
-    };
+    const formatDate = (dateString: string) => new Date(dateString).toLocaleString();
+
+    const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
+
+    useEffect(() => {
+        const updateTime = () => {
+            if (!paste.expiresAt) {
+                setTimeRemaining(null);
+                return;
+            }
+
+            const now = new Date();
+            const expires = new Date(paste.expiresAt);
+            const diff = expires.getTime() - now.getTime();
+
+            if (diff <= 0) {
+                setTimeRemaining('Expired');
+                if (onExpire) onExpire();
+                return;
+            }
+
+            const seconds = Math.floor((diff / 1000) % 60);
+            const minutes = Math.floor((diff / 1000 / 60) % 60);
+            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+            const parts = [];
+            if (days > 0) parts.push(`${days}d`);
+            if (hours > 0) parts.push(`${hours}h`);
+            if (minutes > 0) parts.push(`${minutes}m`);
+            parts.push(`${seconds}s`);
+
+            setTimeRemaining(parts.join(' ') + ' remaining');
+        };
+
+        updateTime();
+        const interval = setInterval(updateTime, 1000);
+
+        return () => clearInterval(interval);
+    }, [paste.expiresAt]);
 
     return (
-        <div className="space-y-4">
+        <div className="card fade-in">
             {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-100">
+            <div
+                className="card-header"
+                style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    gap: '1rem',
+                    flexWrap: 'wrap',
+                }}
+            >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {paste.title || 'Untitled Paste'}
                     </h1>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                         Created: {formatDate(paste.createdAt)}
                     </p>
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                         onClick={handleCopy}
-                        className={`btn-secondary text-sm ${copied ? 'bg-green-500/20 border-green-500 text-green-400' : ''}`}
+                        className={`btn ${copied ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }}
                     >
-                        {copied ? '✓ Copied!' : 'Copy'}
+                        {copied ? 'Copied!' : 'Copy'}
                     </button>
-                    <Link to="/" className="btn-primary text-sm">
+                    <Link to="/" className="btn btn-primary" style={{ padding: '0.5rem 1rem', fontSize: '0.75rem' }}>
                         + New
                     </Link>
                 </div>
             </div>
 
-            {/* Metadata */}
-            <div className="flex flex-wrap gap-4 text-sm">
-                {paste.expiresAt && (
-                    <span className="bg-yellow-500/10 text-yellow-400 px-3 py-1 rounded-full">
-                        Expires: {formatDate(paste.expiresAt)}
-                    </span>
+            {/* Info badges */}
+            <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {timeRemaining ? (
+                    <span className="badge-info">{timeRemaining}</span>
+                ) : (
+                    <span className="badge-success">Never expires</span>
                 )}
-                {paste.maxViews && (
-                    <span className="bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full">
-                        Views: {paste.viewCount} / {paste.maxViews}
-                    </span>
-                )}
-                {!paste.expiresAt && !paste.maxViews && (
-                    <span className="bg-green-500/10 text-green-400 px-3 py-1 rounded-full">
-                        Never expires
-                    </span>
-                )}
+                <span className="badge-info">Views: {paste.viewCount}</span>
             </div>
 
             {/* Content */}
-            <div className="bg-dark-200 rounded-lg border border-gray-700 overflow-hidden">
-                <div className="bg-dark-100 px-4 py-2 border-b border-gray-700 flex items-center justify-between">
-                    <span className="text-xs text-gray-500 font-mono">
-                        {paste.content.split('\n').length} lines • {paste.content.length.toLocaleString()} characters
-                    </span>
+            <div className="code-block" style={{ margin: '1.5rem', borderRadius: '0.5rem' }}>
+                <div className="code-block-header">
+                    <span>{paste.content.split('\n').length} lines • {paste.content.length.toLocaleString()} characters</span>
                 </div>
-                <pre className="p-4 text-sm font-mono text-gray-300 overflow-x-auto whitespace-pre-wrap break-words">
-                    {paste.content}
-                </pre>
+                <pre className="code-block-content">{paste.content}</pre>
             </div>
         </div>
     );
