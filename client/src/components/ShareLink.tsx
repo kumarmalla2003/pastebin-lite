@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CreatePasteResponse } from '../services/api';
+import type { CreatePasteResponse } from '../services/api';
 
 interface ShareLinkProps {
     paste: CreatePasteResponse;

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { createPaste, CreatePasteResponse } from '../services/api';
+import { createPaste } from '../services/api';
+import type { CreatePasteResponse } from '../services/api';
 
 interface CreatePasteProps {
     onSuccess: (response: CreatePasteResponse) => void;

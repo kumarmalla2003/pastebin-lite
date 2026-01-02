@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PasteResponse } from '../services/api';
+import type { PasteResponse } from '../services/api';
 
 interface ViewPasteProps {
     paste: PasteResponse;

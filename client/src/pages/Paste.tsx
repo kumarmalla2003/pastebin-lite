@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Header from '../components/Header';
 import ViewPaste from '../components/ViewPaste';
-import { getPaste, PasteResponse } from '../services/api';
+import { getPaste } from '../services/api';
+import type { PasteResponse } from '../services/api';
 
 function Paste() {
     const { id } = useParams();

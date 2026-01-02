@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Header from '../components/Header';
 import CreatePaste from '../components/CreatePaste';
 import ShareLink from '../components/ShareLink';
-import { CreatePasteResponse } from '../services/api';
+import type { CreatePasteResponse } from '../services/api';
 
 function Home() {
     const [createdPaste, setCreatedPaste] = useState<CreatePasteResponse | null>(null);
