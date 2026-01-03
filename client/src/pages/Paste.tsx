@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -12,30 +12,23 @@ function Paste() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const incrementedRef = useRef(false);
-
     useEffect(() => {
-        const controller = new AbortController();
+        let isCancelled = false;
 
         const fetchPaste = async () => {
             if (!id) return;
 
             try {
-                // Fetch paste data
+                // Increment view count FIRST and AWAIT completion
+                // This ensures the view is registered in DB before we fetch
+                await incrementView(id);
+
+                // Fetch paste data - the viewCount already includes this view
                 const data = await getPaste(id);
 
-                // ALWAYS show optimistic view count (current visit is +1)
-                // This fixes the race condition where a second effect might overwrite with stale data
-                setPaste({
-                    ...data,
-                    viewCount: data.viewCount + 1
-                });
+                if (isCancelled) return;
 
-                // Increment view count in backend (only once per mount)
-                if (!incrementedRef.current) {
-                    incrementedRef.current = true;
-                    incrementView(id).catch(err => console.error('Failed to increment view:', err));
-                }
+                setPaste(data);
             } catch (err: unknown) {
                 if (err && typeof err === 'object' && 'response' in err) {
                     const axiosErr = err as { response?: { status?: number } };
@@ -55,7 +48,7 @@ function Paste() {
         fetchPaste();
 
         return () => {
-            controller.abort();
+            isCancelled = true;
         };
     }, [id]);
 

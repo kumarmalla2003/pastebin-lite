@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { CreatePasteResponse } from '../services/api';
 
 interface ShareLinkProps {
@@ -79,14 +80,12 @@ function ShareLink({ paste, onCreateAnother }: ShareLinkProps) {
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-                    <a
-                        href={paste.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <Link
+                        to={`/${paste.id}`}
                         className="btn btn-secondary"
                     >
                         View Paste →
-                    </a>
+                    </Link>
                     <button onClick={onCreateAnother} className="btn btn-primary">
                         Create Another
                     </button>

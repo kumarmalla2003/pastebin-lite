@@ -1,6 +1,6 @@
 
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import DeleteModal from './DeleteModal';
 import { getAllPastes, deletePaste, deleteAllPastes } from '../services/api';
 import type { PasteListItem } from '../services/api';
@@ -98,6 +98,7 @@ function PasteListItem({
 }
 
 function PasteList() {
+    const location = useLocation();
     const [pastes, setPastes] = useState<PasteListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -131,9 +132,10 @@ function PasteList() {
         }
     };
 
+    // Refetch when navigating back to this page (location.key changes on navigation)
     useEffect(() => {
         fetchPastes();
-    }, []);
+    }, [location.key]);
 
     const handleExpire = (id: string) => {
         setPastes(prev => prev.filter(p => p.id !== id));
