@@ -15,16 +15,6 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 
-// Serve static files in production
-if (process.env.NODE_ENV === 'production') {
-    const path = require('path');
-    const clientDistPath = path.join(__dirname, '../../client/dist');
-    app.use(express.static(clientDistPath));
-
-    // Handle React routing (SPA fallback) - must be AFTER API routes
-    // We'll wrap this in a function to be called after routes are defined
-}
-
 // Routes
 app.use('/api/pastes', pasteRoutes);
 
@@ -32,18 +22,6 @@ app.use('/api/pastes', pasteRoutes);
 app.get('/health', (req: Request, res: Response) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// SPA Fallback for production
-if (process.env.NODE_ENV === 'production') {
-    const path = require('path');
-    app.get('*', (req: Request, res: Response, next: NextFunction) => {
-        // Skip API routes (they should have been matched already or fall through to 404)
-        if (req.path.startsWith('/api')) {
-            return next();
-        }
-        res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
-    });
-}
 
 // 404 handler
 app.use((req: Request, res: Response) => {
