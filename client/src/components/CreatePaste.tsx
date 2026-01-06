@@ -24,7 +24,7 @@ const EXPIRATION_OPTIONS = [
 function CreatePaste({ onSuccess }: CreatePasteProps) {
     const [content, setContent] = useState('');
     const [ttlSeconds, setTtlSeconds] = useState<number | ''>();
-    const [maxViews, setMaxViews] = useState<number | ''>();
+    const [maxViews, setMaxViews] = useState<number | undefined>();
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<{ content?: string; ttlSeconds?: string; maxViews?: string }>({});
 
@@ -37,7 +37,7 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
 
         // ttl_seconds is optional per spec
 
-        if (maxViews !== '' && (Number(maxViews) < 1)) {
+        if (maxViews !== undefined && maxViews < 1) {
             newErrors.maxViews = 'Max views must be at least 1';
         }
 
@@ -56,12 +56,12 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
             const response = await createPaste({
                 content: content.trim(),
                 ttl_seconds: ttlSeconds ? (ttlSeconds as number) : undefined,
-                max_views: maxViews !== '' ? Number(maxViews) : undefined,
+                max_views: maxViews,
             });
             onSuccess(response);
             setContent('');
             setTtlSeconds('');
-            setMaxViews('');
+            setMaxViews(undefined);
             setErrors({});
         } catch (err: unknown) {
             if (err && typeof err === 'object' && 'response' in err) {
@@ -140,11 +140,10 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
                         <input
                             type="number"
                             id="maxViews"
-                            value={maxViews}
-                            onChange={(e) => setMaxViews(e.target.value ? parseInt(e.target.value, 10) : '')}
-                            placeholder="e.g. 100 (Leave empty for unlimited)"
+                            value={maxViews === undefined ? '' : maxViews}
+                            onChange={(e) => setMaxViews(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+                            placeholder="Leave empty for unlimited"
                             className="input-field"
-                            min="1"
                             onWheel={(e) => (e.target as HTMLElement).blur()}
                         />
                         {errors.maxViews && <p className="error-text">{errors.maxViews}</p>}
