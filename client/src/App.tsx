@@ -9,7 +9,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/:id" element={<Paste />} />
+          <Route path="/p/:id" element={<Paste />} />
         </Routes>
       </Router>
     </ThemeProvider>

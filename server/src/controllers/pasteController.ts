@@ -2,61 +2,71 @@ import { Request, Response } from 'express';
 import { createPaste, getPasteById, getAllPastes, deletePaste, cleanupExpiredPastes, incrementViewCount, CreatePasteInput } from '../models/paste';
 import pool from '../utils/database';
 
+// Helper to get current time (supports TEST_MODE with x-test-now-ms header)
+const getCurrentTime = (req: Request): Date => {
+    if (process.env.TEST_MODE === '1') {
+        const testNowMs = req.headers['x-test-now-ms'];
+        if (testNowMs && typeof testNowMs === 'string') {
+            const ms = parseInt(testNowMs, 10);
+            if (!isNaN(ms)) {
+                return new Date(ms);
+            }
+        }
+    }
+    return new Date();
+};
+
 // POST /api/pastes - Create a new paste
 export const handleCreatePaste = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { content, title, expiresIn, maxViews } = req.body;
+        const { content, ttl_seconds, max_views } = req.body;
 
-        // Validation
+        // Validation per spec
         if (!content || typeof content !== 'string') {
-            res.status(400).json({ error: 'Content is required and must be a string' });
+            res.status(400).json({ error: 'content is required and must be a non-empty string' });
             return;
         }
 
         if (content.trim().length === 0) {
-            res.status(400).json({ error: 'Content cannot be empty' });
+            res.status(400).json({ error: 'content cannot be empty' });
             return;
         }
 
         if (content.length > 500000) { // ~500KB limit
-            res.status(400).json({ error: 'Content exceeds maximum size (500KB)' });
+            res.status(400).json({ error: 'content exceeds maximum size (500KB)' });
             return;
         }
 
-        if (title && title.length > 255) {
-            res.status(400).json({ error: 'Title cannot exceed 255 characters' });
-            return;
+        // ttl_seconds validation: optional, must be integer >= 1
+        if (ttl_seconds !== undefined) {
+            if (typeof ttl_seconds !== 'number' || !Number.isInteger(ttl_seconds) || ttl_seconds < 1) {
+                res.status(400).json({ error: 'ttl_seconds must be an integer >= 1' });
+                return;
+            }
         }
 
-        if (expiresIn !== undefined && (typeof expiresIn !== 'number' || expiresIn < 0)) {
-            res.status(400).json({ error: 'expiresIn must be a positive number (seconds)' });
-            return;
-        }
-
-        if (maxViews !== undefined && (typeof maxViews !== 'number' || maxViews < 1)) {
-            res.status(400).json({ error: 'maxViews must be a positive integer' });
-            return;
+        // max_views validation: optional, must be integer >= 1
+        if (max_views !== undefined) {
+            if (typeof max_views !== 'number' || !Number.isInteger(max_views) || max_views < 1) {
+                res.status(400).json({ error: 'max_views must be an integer >= 1' });
+                return;
+            }
         }
 
         const input: CreatePasteInput = {
             content: content.trim(),
-            title: title?.trim(),
-            expiresIn,
-            maxViews
+            ttl_seconds,
+            max_views
         };
 
         const paste = await createPaste(input);
 
-        // Build the response URL
+        // Build the response URL per spec: /p/:id format
         const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
         res.status(201).json({
             id: paste.id,
-            url: `${baseUrl}/${paste.id}`,
-            title: paste.title,
-            createdAt: paste.created_at,
-            expiresAt: paste.expires_at,
-            maxViews: paste.max_views
+            url: `${baseUrl}/p/${paste.id}`
         });
     } catch (error) {
         console.error('Error creating paste:', error);
@@ -64,31 +74,32 @@ export const handleCreatePaste = async (req: Request, res: Response): Promise<vo
     }
 };
 
-// GET /api/pastes/:id - Get a paste by ID
+// GET /api/pastes/:id - Get a paste by ID (increments view count per spec)
 export const handleGetPaste = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
+        const currentTime = getCurrentTime(req);
 
-        if (!id || id.length !== 8) {
-            res.status(400).json({ error: 'Invalid paste ID' });
-            return;
-        }
-
-        const paste = await getPasteById(id);
+        // Get paste and increment view count atomically
+        const paste = await getPasteById(id, currentTime, true);
 
         if (!paste) {
-            res.status(404).json({ error: 'Paste not found or has expired' });
+            res.status(404).json({ error: 'Paste not found' });
             return;
         }
 
+        // Calculate remaining_views per spec
+        // remaining_views = max_views - view_count (after increment)
+        // If max_views is null (unlimited), remaining_views is null
+        const remaining_views = paste.max_views !== null
+            ? paste.max_views - paste.view_count
+            : null;
+
+        // Response per spec
         res.json({
-            id: paste.id,
             content: paste.content,
-            title: paste.title,
-            createdAt: paste.created_at,
-            expiresAt: paste.expires_at,
-            viewCount: paste.view_count,
-            maxViews: paste.max_views
+            remaining_views: remaining_views,
+            expires_at: paste.expires_at ? new Date(paste.expires_at).toISOString() : null
         });
     } catch (error) {
         console.error('Error getting paste:', error);
@@ -96,15 +107,10 @@ export const handleGetPaste = async (req: Request, res: Response): Promise<void>
     }
 };
 
-// POST /api/pastes/:id/view - Increment view count
+// POST /api/pastes/:id/view - Increment view count (for backwards compatibility)
 export const handleIncrementViewCount = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-
-        if (!id || id.length !== 8) {
-            res.status(400).json({ error: 'Invalid paste ID' });
-            return;
-        }
 
         await incrementViewCount(id);
 
@@ -126,7 +132,8 @@ export const handleGetAllPastes = async (req: Request, res: Response): Promise<v
                 title: paste.title,
                 createdAt: paste.created_at,
                 expiresAt: paste.expires_at,
-                viewCount: paste.view_count
+                viewCount: paste.view_count,
+                maxViews: paste.max_views
             }))
         });
     } catch (error) {
@@ -139,11 +146,6 @@ export const handleGetAllPastes = async (req: Request, res: Response): Promise<v
 export const handleDeletePaste = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-
-        if (!id || id.length !== 8) {
-            res.status(400).json({ error: 'Invalid paste ID' });
-            return;
-        }
 
         const deleted = await deletePaste(id);
 

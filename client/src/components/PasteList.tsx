@@ -86,7 +86,7 @@ function PasteListItem({
                     )}
                 </button>
                 <Link
-                    to={`/${paste.id}`}
+                    to={`/p/${paste.id}`}
                     className="btn btn-secondary btn-sm"
                     style={{ padding: '0.375rem 0.75rem' }}
                 >

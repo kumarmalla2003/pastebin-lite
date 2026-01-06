@@ -9,23 +9,27 @@ const api = axios.create({
     },
 });
 
-// Request types
+// Request types (spec-compliant)
 export interface CreatePasteRequest {
     content: string;
-    title: string;
-    expiresIn: number;
-    maxViews?: number;
+    ttl_seconds?: number;  // optional, integer >= 1
+    max_views?: number;    // optional, integer >= 1
 }
 
-// Response types
+// Response types (spec-compliant)
 export interface CreatePasteResponse {
     id: string;
     url: string;
-    title: string;
-    createdAt: string;
-    expiresAt: string;
 }
 
+// API fetch response per spec
+export interface PasteApiResponse {
+    content: string;
+    remaining_views: number | null;
+    expires_at: string | null;
+}
+
+// Extended response for internal UI use
 export interface PasteResponse {
     id: string;
     content: string;
@@ -33,6 +37,7 @@ export interface PasteResponse {
     createdAt: string;
     expiresAt: string | null;
     viewCount: number;
+    maxViews: number | null;
 }
 
 export interface PasteListItem {
@@ -41,6 +46,7 @@ export interface PasteListItem {
     createdAt: string;
     expiresAt: string | null;
     viewCount: number;
+    maxViews: number | null;
 }
 
 // API functions
@@ -49,8 +55,8 @@ export const createPaste = async (data: CreatePasteRequest): Promise<CreatePaste
     return response.data;
 };
 
-export const getPaste = async (id: string): Promise<PasteResponse> => {
-    const response = await api.get<PasteResponse>(`/pastes/${id}`);
+export const getPaste = async (id: string): Promise<PasteApiResponse> => {
+    const response = await api.get<PasteApiResponse>(`/pastes/${id}`);
     return response.data;
 };
 

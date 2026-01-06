@@ -20,12 +20,6 @@ function ShareLink({ paste, onCreateAnother }: ShareLinkProps) {
         }
     };
 
-    const formatExpiration = () => {
-        if (!paste.expiresAt) return 'Never expires';
-        const date = new Date(paste.expiresAt);
-        return `Expires: ${date.toLocaleString()}`;
-    };
-
     return (
         <div className="card fade-in">
             <div className="card-body" style={{ textAlign: 'center' }}>
@@ -52,11 +46,11 @@ function ShareLink({ paste, onCreateAnother }: ShareLinkProps) {
                     Paste Created!
                 </h2>
                 <p style={{ margin: '0 0 1.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                    {paste.title}
+                    Your paste is ready to share
                 </p>
 
                 {/* URL Input */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
                     <input
                         type="text"
                         value={paste.url}
@@ -73,15 +67,11 @@ function ShareLink({ paste, onCreateAnother }: ShareLinkProps) {
                     </button>
                 </div>
 
-                {/* Info */}
-                <p style={{ margin: '0 0 1.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                    {formatExpiration()}
-                </p>
 
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
                     <Link
-                        to={`/${paste.id}`}
+                        to={`/p/${paste.id}`}
                         className="btn btn-secondary"
                     >
                         View Paste →

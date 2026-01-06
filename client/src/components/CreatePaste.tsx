@@ -24,13 +24,13 @@ const EXPIRATION_OPTIONS = [
 function CreatePaste({ onSuccess }: CreatePasteProps) {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
-    const [expiresIn, setExpiresIn] = useState<number | ''>('');
-    const [maxViews, setMaxViews] = useState<number | ''>('');
+    const [ttlSeconds, setTtlSeconds] = useState<number | ''>();
+    const [maxViews, setMaxViews] = useState<number | ''>();
     const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState<{ title?: string; content?: string; expiresIn?: string; maxViews?: string }>({});
+    const [errors, setErrors] = useState<{ title?: string; content?: string; ttlSeconds?: string; maxViews?: string }>({});
 
     const validate = () => {
-        const newErrors: { title?: string; content?: string; expiresIn?: string; maxViews?: string } = {};
+        const newErrors: { title?: string; content?: string; ttlSeconds?: string; maxViews?: string } = {};
 
         if (!title.trim()) {
             newErrors.title = 'Title is required';
@@ -40,8 +40,8 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
             newErrors.content = 'Content is required';
         }
 
-        if (!expiresIn) {
-            newErrors.expiresIn = 'Expiration is required';
+        if (!ttlSeconds) {
+            newErrors.ttlSeconds = 'Expiration is required';
         }
 
         if (maxViews !== '' && (Number(maxViews) < 1)) {
@@ -61,15 +61,14 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
 
         try {
             const response = await createPaste({
-                title: title.trim(),
                 content: content.trim(),
-                expiresIn: expiresIn as number,
-                maxViews: maxViews !== '' ? Number(maxViews) : undefined,
+                ttl_seconds: ttlSeconds as number,
+                max_views: maxViews !== '' ? Number(maxViews) : undefined,
             });
             onSuccess(response);
             setTitle('');
             setContent('');
-            setExpiresIn('');
+            setTtlSeconds('');
             setMaxViews('');
             setErrors({});
         } catch (err: unknown) {
@@ -144,9 +143,9 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
                             Expires After
                         </label>
                         <select
-                            id="expiresIn"
-                            value={expiresIn}
-                            onChange={(e) => setExpiresIn(e.target.value ? parseInt(e.target.value, 10) : '')}
+                            id="ttlSeconds"
+                            value={ttlSeconds}
+                            onChange={(e) => setTtlSeconds(e.target.value ? parseInt(e.target.value, 10) : '')}
                             className="input-field"
                         >
                             <option value="">Select expiration...</option>
@@ -156,7 +155,7 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
                                 </option>
                             ))}
                         </select>
-                        {errors.expiresIn && <p className="error-text">{errors.expiresIn}</p>}
+                        {errors.ttlSeconds && <p className="error-text">{errors.ttlSeconds}</p>}
                     </div>
 
                     {/* Max Views (Optional) */}

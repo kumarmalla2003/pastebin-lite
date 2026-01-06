@@ -15,19 +15,19 @@ export interface Paste {
 export interface CreatePasteInput {
     content: string;
     title?: string;
-    expiresIn?: number; // seconds
-    maxViews?: number;
+    ttl_seconds?: number;  // Changed from expiresIn to match spec
+    max_views?: number;    // Changed from maxViews to match spec
 }
 
 // Create a new paste
 export const createPaste = async (input: CreatePasteInput): Promise<Paste> => {
     const id = generatePasteId();
-    const { content, title, expiresIn, maxViews } = input;
+    const { content, title, ttl_seconds, max_views } = input;
 
     // Calculate expiration time if provided
     let expiresAt: Date | null = null;
-    if (expiresIn && expiresIn > 0) {
-        expiresAt = new Date(Date.now() + expiresIn * 1000);
+    if (ttl_seconds && ttl_seconds > 0) {
+        expiresAt = new Date(Date.now() + ttl_seconds * 1000);
     }
 
     const query = `
@@ -36,43 +36,78 @@ export const createPaste = async (input: CreatePasteInput): Promise<Paste> => {
     RETURNING *
   `;
 
-    const values = [id, content, title || null, expiresAt, maxViews || null];
+    const values = [id, content, title || null, expiresAt, max_views || null];
     const result = await pool.query(query, values);
 
     return result.rows[0];
 };
 
-// Get a paste by ID (and increment view count)
-export const getPasteById = async (id: string): Promise<Paste | null> => {
-    // First, get the paste without incrementing
-    const selectQuery = `SELECT * FROM pastes WHERE id = $1`;
-    const selectResult = await pool.query(selectQuery, [id]);
+// Get a paste by ID with optional view increment
+// currentTime is used to check expiry (supports TEST_MODE with x-test-now-ms header)
+// incrementView controls whether to increment the view count (for API fetches)
+export const getPasteById = async (
+    id: string,
+    currentTime: Date = new Date(),
+    incrementView: boolean = false
+): Promise<Paste | null> => {
+    // Use a transaction for atomic read + increment
+    const client = await pool.connect();
 
-    if (selectResult.rows.length === 0) {
-        return null;
+    try {
+        await client.query('BEGIN');
+
+        // Get the paste
+        const selectQuery = `SELECT * FROM pastes WHERE id = $1 FOR UPDATE`;
+        const selectResult = await client.query(selectQuery, [id]);
+
+        if (selectResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return null;
+        }
+
+        const paste = selectResult.rows[0] as Paste;
+
+        // Check if paste has expired by time
+        if (paste.expires_at && new Date(paste.expires_at) <= currentTime) {
+            // Delete the expired paste
+            await client.query(`DELETE FROM pastes WHERE id = $1`, [id]);
+            await client.query('COMMIT');
+            return null;
+        }
+
+        // Check if paste has reached max views BEFORE incrementing
+        if (paste.max_views !== null && paste.view_count >= paste.max_views) {
+            // Delete the paste that exceeded views
+            await client.query(`DELETE FROM pastes WHERE id = $1`, [id]);
+            await client.query('COMMIT');
+            return null;
+        }
+
+        // Increment view count if requested (for API/HTML fetches)
+        if (incrementView) {
+            const updateQuery = `
+                UPDATE pastes 
+                SET view_count = view_count + 1 
+                WHERE id = $1
+                RETURNING *
+            `;
+            const updateResult = await client.query(updateQuery, [id]);
+            await client.query('COMMIT');
+            return updateResult.rows[0] as Paste;
+        }
+
+        await client.query('COMMIT');
+        return paste;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
     }
-
-    const paste = selectResult.rows[0] as Paste;
-
-    // Check if paste has expired by time
-    if (paste.expires_at && new Date(paste.expires_at) < new Date()) {
-        await deletePaste(id);
-        return null;
-    }
-
-    // Check if paste has reached max views
-    // If current view_count is already equal to or greater than max_views, it should be deleted/unavailable
-    if (paste.max_views !== null && paste.view_count >= paste.max_views) {
-        await deletePaste(id);
-        return null;
-    }
-
-    return paste;
 };
 
-// Increment view count
+// Increment view count (standalone - for backwards compatibility)
 export const incrementViewCount = async (id: string): Promise<void> => {
-    // Get current state
     const selectQuery = `SELECT * FROM pastes WHERE id = $1`;
     const result = await pool.query(selectQuery, [id]);
 
@@ -82,7 +117,6 @@ export const incrementViewCount = async (id: string): Promise<void> => {
     }
 
     const paste = result.rows[0] as Paste;
-    console.log(`[IncrementView] Current views for ${id}: ${paste.view_count}, Max: ${paste.max_views}`);
 
     // Check if paste has reached max views
     if (paste.max_views !== null && paste.view_count >= paste.max_views) {
@@ -98,7 +132,6 @@ export const incrementViewCount = async (id: string): Promise<void> => {
     WHERE id = $1
   `;
     await pool.query(updateQuery, [id]);
-    console.log(`[IncrementView] Incremented views for ${id}`);
 };
 
 // Delete a paste
@@ -124,7 +157,7 @@ export const getAllPastes = async (): Promise<Paste[]> => {
     await cleanupExpiredPastes();
 
     const query = `
-    SELECT id, title, created_at, expires_at, view_count 
+    SELECT id, title, created_at, expires_at, view_count, max_views 
     FROM pastes 
     ORDER BY created_at DESC
     LIMIT 50
