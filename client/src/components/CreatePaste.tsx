@@ -22,27 +22,20 @@ const EXPIRATION_OPTIONS = [
 ];
 
 function CreatePaste({ onSuccess }: CreatePasteProps) {
-    const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [ttlSeconds, setTtlSeconds] = useState<number | ''>();
     const [maxViews, setMaxViews] = useState<number | ''>();
     const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState<{ title?: string; content?: string; ttlSeconds?: string; maxViews?: string }>({});
+    const [errors, setErrors] = useState<{ content?: string; ttlSeconds?: string; maxViews?: string }>({});
 
     const validate = () => {
-        const newErrors: { title?: string; content?: string; ttlSeconds?: string; maxViews?: string } = {};
-
-        if (!title.trim()) {
-            newErrors.title = 'Title is required';
-        }
+        const newErrors: { content?: string; ttlSeconds?: string; maxViews?: string } = {};
 
         if (!content.trim()) {
             newErrors.content = 'Content is required';
         }
 
-        if (!ttlSeconds) {
-            newErrors.ttlSeconds = 'Expiration is required';
-        }
+        // ttl_seconds is optional per spec
 
         if (maxViews !== '' && (Number(maxViews) < 1)) {
             newErrors.maxViews = 'Max views must be at least 1';
@@ -62,11 +55,10 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
         try {
             const response = await createPaste({
                 content: content.trim(),
-                ttl_seconds: ttlSeconds as number,
+                ttl_seconds: ttlSeconds ? (ttlSeconds as number) : undefined,
                 max_views: maxViews !== '' ? Number(maxViews) : undefined,
             });
             onSuccess(response);
-            setTitle('');
             setContent('');
             setTtlSeconds('');
             setMaxViews('');
@@ -95,23 +87,6 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
             </div>
             <div className="card-body">
                 <form onSubmit={handleSubmit}>
-                    {/* Title */}
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label htmlFor="title" className="label label-required">
-                            Title
-                        </label>
-                        <input
-                            type="text"
-                            id="title"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            placeholder="Enter a title for your paste"
-                            className="input-field"
-                            maxLength={255}
-                        />
-                        {errors.title && <p className="error-text">{errors.title}</p>}
-                    </div>
-
                     {/* Content */}
                     <div style={{ marginBottom: '1rem' }}>
                         <label htmlFor="content" className="label label-required">
@@ -137,10 +112,10 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
                         </div>
                     </div>
 
-                    {/* Expiration */}
+                    {/* Expiration (Optional) */}
                     <div style={{ marginBottom: '1rem' }}>
-                        <label htmlFor="expiresIn" className="label label-required">
-                            Expires After
+                        <label htmlFor="ttlSeconds" className="label">
+                            Expires After (Optional)
                         </label>
                         <select
                             id="ttlSeconds"
@@ -148,14 +123,13 @@ function CreatePaste({ onSuccess }: CreatePasteProps) {
                             onChange={(e) => setTtlSeconds(e.target.value ? parseInt(e.target.value, 10) : '')}
                             className="input-field"
                         >
-                            <option value="">Select expiration...</option>
+                            <option value="">Never expires</option>
                             {EXPIRATION_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>
                             ))}
                         </select>
-                        {errors.ttlSeconds && <p className="error-text">{errors.ttlSeconds}</p>}
                     </div>
 
                     {/* Max Views (Optional) */}

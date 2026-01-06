@@ -62,7 +62,7 @@ function PasteListItem({
         <div className="paste-list-item">
             <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {paste.title || 'Untitled'}
+                    Paste {paste.id}
                 </p>
                 <p style={{ margin: '0.125rem 0 0', fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
                     Expires in {timeRemaining} • {paste.viewCount} views
@@ -70,7 +70,7 @@ function PasteListItem({
             </div>
             <div style={{ display: 'flex', gap: '0.375rem', flexShrink: 0 }}>
                 <button
-                    onClick={() => onOpenDeleteModal(paste.id, paste.title)}
+                    onClick={() => onOpenDeleteModal(paste.id, `Paste ${paste.id}`)}
                     className="btn btn-danger-ghost btn-icon btn-sm"
                     disabled={deletingId === paste.id}
                     title="Delete paste"
